@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>ICFP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <!-- Le styles -->
+    <link href="../assets/css/bootstrap.css" rel="stylesheet">
+    <style>
+      body {
+        padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
+      }
+    </style>
+    <link href="../assets/css/bootstrap-responsive.css" rel="stylesheet">
+  </head>
+
+  <body>
+
+    <div class="navbar navbar-fixed-top">
+      <div class="navbar-inner">
+        <div class="container">
+            <a class="brand" href="#">ICFP</a>
+            <div class="btn-group">
+                <button id="btn-start" class="btn"><i class="icon-fast-backward"></i></button>
+                <button id="btn-back" class="btn"><i class="icon-step-backward"></i></button>
+                <button id="btn-play" class="btn"><i class="icon-play"></i></button>
+                <button id="btn-pause" class="btn hide"><i class="icon-pause"></i></button>
+                <button id="btn-forward" class="btn"><i class="icon-step-forward"></i></button>
+                <button id="btn-end" class="btn"><i class="icon-fast-forward"></i></button>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <p></p>
+    <div class="container">
+        <div class="row">
+            <div class="span2">
+                <button id="btn-modal" class="btn" style='width: 100%' data-toggle="modal" href='#modal-hello'>Modal</button>
+            </div>
+        
+            <div class="span10">
+                <canvas id='canvas' style='border: 1px solid black; width: 100%; height: 840px; background-color: #eee'>
+                </canvas>
+            </div>
+        </div>
+    </div> <!-- /container -->
+
+    <div id='modal-hello' class="modal hide">
+        <div class="modal-header">
+            <a class="close" data-dismiss="modal">×</a>
+            <h3>Hello world!</h3>
+        </div>
+        <div class="modal-body">
+            <p>This is a test</p>
+        </div>
+    </div>
+    
+    <!-- Le javascript
+    ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script src="../assets/js/jquery-3.6.0.min.js"></script>
+    <script src="../assets/js/bootstrap.min.js"></script>
+    <script src="../assets/js/icfp-canvas.js"></script>
+    <script>
+        function togglePlayPause() {
+            $('#btn-play').toggle();
+            $('#btn-pause').toggle();
+        }
+
+        $('#btn-play').click(togglePlayPause);
+        $('#btn-pause').click(togglePlayPause);
+        
+        function canvasPaint(canvas) {
+            for (var i = -3; i <= 3; ++i) {
+                canvas.line(-3, i, 3, i);
+                canvas.line(i, -3, i, 3);
+            }
+
+            canvas.circle(0, 0, 1.5, 'rgba(0, 0, 255, .8)');
+            
+            canvas.text('example', -3, -3.1, 'darkgreen');
+        }
+        
+        canvas = new IcfpCanvas('#canvas', canvasPaint);
+        canvas.zoom(5, 5);
+    </script>
+  </body>
+</html>
