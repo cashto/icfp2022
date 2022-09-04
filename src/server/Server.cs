@@ -95,6 +95,11 @@ public class ApiController : ControllerBase
             }
         }
 
+        if (n == 0)
+        {
+            return sum;
+        }
+
         return sum.Select(i => (int)(i / n + 0.5)).ToList();
     }
 

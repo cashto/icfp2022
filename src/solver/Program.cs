@@ -1,4 +1,7 @@
-﻿using System.Threading;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.IO;
+using System.Threading;
 using IcfpUtils;
 using ImageMagick;
 using System;
@@ -307,6 +310,17 @@ class Program
         {
             return x1 >= 0 && y1 >= 0 && x2 < 400 && y2 < 400 && x2 > x1 && y2 > y1;
         }
+
+        public Dictionary<string, int> ToDict()
+        {
+            return new Dictionary<string, int>()
+            {
+                { "x", x1 },
+                { "y", 399 - y1 - (y2 - y1)},
+                { "dx", x2 - x1 },
+                { "dy", y2 - y1 }
+            };
+        }
     }
 
     static IEnumerable<Int32[]> GetRectangleColors(Image image, IEnumerable<Rectangle> rects)
@@ -317,15 +331,7 @@ class Program
         foreach (var r in rects)
         {
             yield return Average(image.Enumerate(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1, mask));
-
-            // Set mask
-            for (var y = r.y1; y < r.y2; ++y)
-            {
-                for (var x = r.x1; x < r.x2; ++x)
-                {
-                    mask.Set(x, y, mask_pixel);
-                }
-            }
+            mask.Fill(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1, mask_pixel);
         }
 
         yield return Average(image.Enumerate(0, 0, image.Width, image.Height, mask));
@@ -337,13 +343,22 @@ class Program
         public Image OriginalImage { get; set; }
         public List<Rectangle> Rectangles { get; set; }
         public double Penalty { get; set; }
+        public double PixelPenalty { get; set; }
 
         public SearchState(Random random, Image originalImage, IEnumerable<Rectangle> rectangles)
         {
             Random = random;
             OriginalImage = originalImage;
             Rectangles = rectangles.ToList();
-            Penalty = Paint().Diff(OriginalImage); // + random.Next(0, 250);
+
+            PixelPenalty = Paint().Diff(OriginalImage);
+            var rectanglePenalties =
+                from r in Rectangles
+                let penalty = 6.0 * 400.0 * 400.0 / (r.x2 - r.x1) / (r.y2 - r.y1)
+                select penalty;
+
+            var rectanglePenalty = Rectangles.Count * 10; // rectanglePenalties.Sum() + (30 - Rectangles.Count) * 1000000;
+            Penalty = PixelPenalty + rectanglePenalty;
         }
 
         public Image Paint()
@@ -397,7 +412,7 @@ class Program
         {
             var newRects = new List<Rectangle>();
 
-            if (oldState.Rectangles.Count == 0 || random.Next(0, 50) == 0)
+            if (oldState.Rectangles.Count == 0 || random.Next(0, 25) == 0)
             {
                 var x = random.Next(0, 395);
                 var y = random.Next(0, 395);
@@ -430,27 +445,46 @@ class Program
         }
     }
 
+    static List<Rectangle> EliminateRects(Image image, List<Rectangle> rects, int howMany)
+    {
+        var mask = new Image(image.Width, image.Height);
+        var mask_pixel = new int[] { 1, 1, 1, 1 };
+
+        var pixelCounts = new List<Tuple<Rectangle, int>>();
+        foreach (var r in rects)
+        {
+            pixelCounts.Add(Tuple.Create(r, image.Enumerate(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1, mask).Count()));
+            mask.Fill(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1, mask_pixel);
+        }
+
+        var sorted_rects =
+            from i in pixelCounts
+            let rect = i.Item1
+            let pixelCount = i.Item2 // ((rect.x2 - rect.x1) * (rect.y2 - rect.y1))
+            orderby pixelCount
+            select rect;
+
+        return sorted_rects.Skip(howMany).ToList();
+    }
+
     static void Main(string[] args)
     {
         var random = new Random();
-        var block_size = 5;
         var src = Image.Load("input.png");
+        var originalRects = new List<Rectangle>();
+        if (File.Exists("output.json"))
+        {
+            var in_json = JToken.Parse(File.ReadAllText("output.json"));
+            foreach (var r in in_json["rects"])
+            {
+                var x1 = (int)r["x"];
+                var width = (int)r["dx"];
+                var height = (int)r["dy"];
+                var y1 = 399 - (int)r["y"] - height;
 
-        //var dst = new Image(src.Width / block_size, src.Height / block_size);
-
-        //for (var y = 0; y < dst.Height; ++y)
-        //{
-        //    for (var x = 0; x < dst.Width; ++x)
-        //    {
-        //        dst.Set(x, y, Average(src.Enumerate(x * block_size, y * block_size, block_size, block_size)));
-        //    }
-        //}
-
-        var originalRects =
-            from i in Enumerable.Range(0, 0)
-            let x = random.Next(0, 400)
-            let y = random.Next(0, 400)
-            select new Rectangle(x, y, x + 1, y + 1);
+                originalRects.Add(new Rectangle(x1, y1, x1 + width, y1 + height));
+            }
+        }
 
         var originalState = new SearchState(random, src, originalRects);
 
@@ -460,45 +494,43 @@ class Program
             CancellationToken.None,
             GenerateNewStates);
 
+        SearchState best_state = null;
+        var best_penalty = Double.PositiveInfinity;
+
         var searchNodeEnum = searchNodes.GetEnumerator();
-        for (var i = 0; i < 10000; ++i)
+        for (var i = 1; i < 5000; ++i)
         {
             searchNodeEnum.MoveNext();
             if (i % 100 == 0)
             {
-                searchNodeEnum.Current.State.Paint().Save($"intermediate-{i}.png");
-                Console.WriteLine(searchNodeEnum.Current.State.Penalty);
+                //searchNodeEnum.Current.State.Paint().Save($"intermediate-{i}.png");
+                Console.WriteLine($"{searchNodeEnum.Current.State.PixelPenalty} / {searchNodeEnum.Current.State.Penalty}");
             }
+
+            if (searchNodeEnum.Current.State.Penalty < best_penalty)
+            {
+                best_state = searchNodeEnum.Current.State;
+                best_penalty = searchNodeEnum.Current.State.Penalty;
+            }
+
+            //if (i % 1000 == 0)
+            //{
+            //    // Restart search
+            //    searchNodes = IcfpUtils.Algorithims.Search(
+            //        new SearchState(random, src, EliminateRects(src, best_state.Rectangles, 5)),
+            //        BestFirstSearch.Create<SearchState, NoMove>((a, b) => a.State.Penalty > b.State.Penalty, 1000),
+            //        CancellationToken.None,
+            //        GenerateNewStates);
+            //    searchNodeEnum = searchNodes.GetEnumerator();
+            //}
         }
 
-        var dst = searchNodeEnum.Current.State.Paint();
-
-        //// 5 10 20 40 80
-        //var paints = new List<List<Paint>>();
-        //for (var i = 0; i < 4; ++i)
-        //{
-        //    var result = FindPaints(dst);
-        //    dst = result.Item1;
-        //    paints.Add(result.Item2);
-        //}
-
-        //foreach (var paint in paints.Reverse<List<Paint>>())
-        //{
-        //    dst = ApplyPaints(dst, paint);
-        //}
-
-        //var upsample = new Image(src.Width, src.Height);
-        //for (var y = 0; y < dst.Height; ++y)
-        //{
-        //    for (var x = 0; x < dst.Width; ++x)
-        //    {
-        //        upsample.Fill(x * block_size, y * block_size, block_size, block_size, dst.Get(x, y));
-        //    }
-        //}
-
-        //dst = upsample;
+        best_state.Rectangles = EliminateRects(src, best_state.Rectangles, 5);
+        var dst = best_state.Paint();
 
         dst.Save("output.png");
+        var json = new Dictionary<string, object>() { { "rects", best_state.Rectangles.Reverse<Rectangle>().Select(i => i.ToDict()) } };
+        File.WriteAllText("output.json", JsonConvert.SerializeObject(json));
 
         var img_diff = new Image(src.Width, src.Height);
         for (var y = 0; y < src.Height; ++y)
@@ -511,6 +543,6 @@ class Program
         }
         img_diff.Save("diff.png");
 
-        Console.WriteLine($"Penalty: {src.Diff(dst)}");
+        Console.WriteLine($"Penalty: {src.Diff(dst)} / {best_state.Penalty}");
     }
 }
