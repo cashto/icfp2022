@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "solver": {
+      "commandName": "Project",
+      "workingDirectory": "C:\\Users\\cashto\\Documents\\GitHub\\icfp2022\\work\\solver"
+    }
+  }
+}

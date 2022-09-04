@@ -1,10 +1,11 @@
 class IcfpCanvas {
-    constructor (elementId, paintFn) {
+    constructor (elementId, paintFn, mouseEvents) {
         this.element = document.querySelector(elementId);
         this.dx = 0;
         this.dy = 0;
         this.zoom(1, 1);
         this.paintFn = paintFn;
+        this.mouseEvents = mouseEvents;
         var canvas = this;
         
         var paint = function(canvas) {
@@ -20,9 +21,19 @@ class IcfpCanvas {
             var scale = event.deltaY > 0 ? 0.8 : 1.25;
             canvas.scaleX = canvas.scaleX * scale;
             canvas.scaleY = canvas.scaleY * scale;
-        }
+        }   
         
+        var onmousedown = function(event, canvas) {
+            if ((event.buttons & 1) == 1) {
+                canvas.mouseEvents.down(canvas.InvX(event.offsetX), canvas.InvY(event.offsetY));
+            }            
+        }
+
         var onmouseup = function(event, canvas) {
+            if ((event.buttons & 1) == 1) {
+                canvas.mouseEvents.up(canvas.InvX(event.offsetX), canvas.InvY(event.offsetY));
+            }            
+
             canvas.lastMouseMoveEvent = null;
         }
         
@@ -34,6 +45,10 @@ class IcfpCanvas {
         }
                 
         var onmousemove = function(event, canvas) {
+            if ((event.buttons & 1) == 1) {
+                canvas.mouseEvents.move(canvas.InvX(event.offsetX), canvas.InvY(event.offsetY));
+            }            
+
             if ((event.buttons & 2) == 0) {
                 return;
             }
@@ -49,6 +64,7 @@ class IcfpCanvas {
         
         $(this.element).on('wheel', function(event) { onwheel(event.originalEvent, canvas); });
         $(this.element).on('contextmenu', function(event) { oncontextmenu(event, canvas); });
+        $(this.element).mousedown(function(event) { onmousedown(event, canvas); });
         $(this.element).mousemove(function(event) { onmousemove(event, canvas); });
         $(this.element).mouseup(function(event) { onmouseup(event, canvas); });
         $(this.element).mouseleave(function(event) { onmouseup(event, canvas); });
@@ -70,6 +86,14 @@ class IcfpCanvas {
     
     Y(y) {
         return Math.round((y + this.dy) * this.scaleY + this.clientY() / 2) + 0.5;
+    }
+
+    InvX(x) {
+        return (x - this.clientX() / 2) / this.scaleX - this.dx;
+    }
+    
+    InvY(y) {
+        return (y - this.clientY() / 2) / this.scaleY - this.dy;
     }
     
     zoom(dx, dy) {
@@ -104,5 +128,16 @@ class IcfpCanvas {
     rect(x, y, dx, dy, color) {
         this.context.fillStyle = color || 'black';
         this.context.fillRect(this.X(x), this.Y(y), dx * this.scaleX, dy * this.scaleY);
+    }
+    
+    outlinerect(x, y, dx, dy, color) {
+        this.context.strokeStyle = color || 'black';
+        this.context.strokeRect(this.X(x), this.Y(y), dx * this.scaleX, dy * this.scaleY);
+    }    
+    
+    image(x, y, img, opacity) {
+        this.context.globalAlpha = opacity;
+        this.context.imageSmoothingEnabled = false;
+        this.context.drawImage(img, this.X(x), this.Y(y), img.width * this.scaleX, img.height * this.scaleY);
     }
 }

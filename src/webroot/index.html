@@ -22,14 +22,22 @@
     <div class="navbar navbar-fixed-top">
       <div class="navbar-inner">
         <div class="container">
-            <a class="brand" href="#">ICFP</a>
+            <a class="brand" href="#">ICFP 2022</a>
+            <ul class="nav">
+              <li><a id="text-problem" href="#">Problem 1</a></li>
+            </ul>            
             <div class="btn-group">
+                <button id="btn-left" class="btn"><i class="icon-chevron-left"></i></button>
+                <button id="btn-right" class="btn"><i class="icon-chevron-right"></i></button>
+                
+<!--
                 <button id="btn-start" class="btn"><i class="icon-fast-backward"></i></button>
                 <button id="btn-back" class="btn"><i class="icon-step-backward"></i></button>
                 <button id="btn-play" class="btn"><i class="icon-play"></i></button>
                 <button id="btn-pause" class="btn hide"><i class="icon-pause"></i></button>
                 <button id="btn-forward" class="btn"><i class="icon-step-forward"></i></button>
                 <button id="btn-end" class="btn"><i class="icon-fast-forward"></i></button>
+-->
             </div>
         </div>
       </div>
@@ -39,7 +47,16 @@
     <div class="container">
         <div class="row">
             <div class="span2">
-                <button id="btn-modal" class="btn" style='width: 100%' data-toggle="modal" href='#modal-hello'>Modal</button>
+                <!-- <button id="btn-modal" class="btn" style='width: 100%' data-toggle="modal" href='#modal-hello'>Modal</button> -->
+                 <p><button id="btn-clear" style='width: 100%' class="btn">Clear All</button>
+                 <p><button id="btn-save" style='width: 100%' class="btn">Save</button>
+                 <p><button id="btn-load" style='width: 100%' class="btn">Load</button>
+                 <hr>
+                 <p><button id="btn-new" style='width: 100%' class="btn">New Rectangle</button>
+                 <p><button id="btn-del" style='width: 100%' class="btn">Delete Rectangle</button>
+                 <p><button id="btn-raise" style='width: 100%' class="btn">Raise Rectangle</button>
+                 <p><button id="btn-lower" style='width: 100%' class="btn">Lower Rectangle</button>
+                 <p><button id="btn-submit" style='width: 100%' class="btn">Submit</button>
             </div>
         
             <div class="span10">
@@ -66,27 +83,187 @@
     <script src="../assets/js/bootstrap.min.js"></script>
     <script src="../assets/js/icfp-canvas.js"></script>
     <script>
+        problem_id = 1;
+        image = new Image();
+        image.src = '/problems/1.png';
+        rects = [];
+        selected_rect = null;
+        selected_resize = false;
+
+        function onClickClear() {
+            rects = [];
+            selected_rect = null;
+            selected_resize = false;
+        }
+
+        function onClickSave() {
+            $.ajax('/api/save/' + problem_id, { method: 'POST', data: JSON.stringify({'rects': rects.map(roundRect)}), contentType: 'application/json'});
+        }
+        
+        function onClickLoad() {
+            $('#text-problem').html("Problem " + problem_id);
+            $.ajax('/api/load/' + problem_id).done(function(data) {
+                rects = JSON.parse(data).rects.map(function(i) {
+                    return new Rectangle(i.x, 400 - i.y - i.dy - 1, i.dx, i.dy);
+                });
+                selected_rect = null;
+            });
+        }
+        
+        function onClickLeft() {
+            problem_id = Math.max(problem_id - 1, 1);
+            image.src = '/problems/' + problem_id + '.png';
+            onClickLoad();
+        }
+       
+        function onClickRight() {
+            problem_id = Math.min(problem_id + 1, 25);
+            image.src = '/problems/' + problem_id + '.png';
+            onClickLoad();
+        }
+        
+        function roundRect(rect) {
+            if (rect.x < 0) { rect.x = 0; }
+            if (rect.y < 0) { rect.y = 0; }
+            if (rect.x + rect.dx >= 400) { rect.dx = 400 - rect.x - 1; }
+            if (rect.y + rect.dy >= 400) { rect.dy = 400 - rect.y - 1; }
+            return new Rectangle(Math.round(rect.x), 400 - Math.round(rect.y + rect.dy) - 1, Math.round(rect.dx), Math.round(rect.dy));
+        }
+        
+        function onSubmit() {
+            var r = [new Rectangle(0, 0, 400, 400)];
+            r = r.concat(rects.map(roundRect));
+            $.ajax('/api/submit/' + problem_id, { method: 'POST', data: JSON.stringify({'rects': r}), contentType: 'application/json'});
+        }
+
+        function onClickNewRect() {
+            rects.push(new Rectangle(-100 / canvas.scaleX - canvas.dx, -100 / canvas.scaleY - canvas.dy, 200 / canvas.scaleX, 200 / canvas.scaleY));
+            selected_rect = rects[rects.length - 1];
+            selected_resize = false;
+        }
+        
+        function onClickDeleteRect() {
+            if (selected_rect === null) {
+                return;
+            }
+            rects = rects.filter(function(i) { return i !== selected_rect; });
+            selected_rect = null;
+        }
+        
+        function onClickRaiseRect() {
+            if (selected_rect === null || rects[rects.length - 1] === selected_rect) {
+                return;
+            }
+            var rect_idx = rects.indexOf(selected_rect);
+            rects[rect_idx] = rects[rect_idx + 1];
+            rects[rect_idx + 1] = selected_rect;
+        }
+
+        function onClickLowerRect() {
+            if (selected_rect === null || rects[0] === selected_rect) {
+                return;
+            }
+            var rect_idx = rects.indexOf(selected_rect);
+            rects[rect_idx] = rects[rect_idx - 1];
+            rects[rect_idx - 1] = selected_rect;
+        }
+
+        function dist(x1, y1, x2, y2) {
+            var dx = x1 - x2;
+            var dy = y1 - y2;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        
+        class Rectangle {
+            constructor (x, y, dx, dy) {            
+                this.x = x;
+                this.y = y;
+                this.dx = dx;
+                this.dy = dy;
+            }
+            
+            contains(x, y) {
+                return x >= this.x && x < this.x + this.dx && y >= this.y && y < this.y + this.dy;
+            }
+            
+            right() {
+                return this.x + this.dx;
+            }
+            
+            bottom() {
+                return this.y + this.dy;
+            }
+        }
+        
         function togglePlayPause() {
             $('#btn-play').toggle();
             $('#btn-pause').toggle();
         }
 
-        $('#btn-play').click(togglePlayPause);
-        $('#btn-pause').click(togglePlayPause);
+        $('#btn-clear').click(onClickClear);
+        $('#btn-save').click(onClickSave);
+        $('#btn-load').click(onClickLoad);
+        $('#btn-left').click(onClickLeft);
+        $('#btn-right').click(onClickRight);
+        $('#btn-new').click(onClickNewRect);
+        $('#btn-del').click(onClickDeleteRect);
+        $('#btn-raise').click(onClickRaiseRect);
+        $('#btn-lower').click(onClickLowerRect);
+        $('#btn-submit').click(onSubmit);
         
         function canvasPaint(canvas) {
-            for (var i = -3; i <= 3; ++i) {
-                canvas.line(-3, i, 3, i);
-                canvas.line(i, -3, i, 3);
+            for (var i = 0; i < rects.length; ++i) {
+                var rect = rects[i];
+                var is_selected = rect === selected_rect;
+                var x = Math.round(rect.x);
+                var y = Math.round(rect.y);
+                var dx = Math.round(rect.dx);
+                var dy = Math.round(rect.dy);
+                canvas.rect(x, y, dx, dy, 'white');
+                canvas.outlinerect(x, y, dx, dy, !is_selected ? 'purple' : selected_resize ? 'red' : 'orange');
             }
-
-            canvas.circle(0, 0, 1.5, 'rgba(0, 0, 255, .8)');
             
-            canvas.text('example', -3, -3.1, 'darkgreen');
+            canvas.image(0, 0, image, 0.4);
         }
         
-        canvas = new IcfpCanvas('#canvas', canvasPaint);
-        canvas.zoom(5, 5);
+        class MouseEvents {
+            down(x, y) {
+                this.last_down = { x: x, y: y };
+                selected_rect = null;
+                for (var i = 0; i < rects.length; ++i) {
+                    var is_resize = dist(x, y, rects[i].right(), rects[i].bottom()) < 20 / canvas.scaleX;
+                    if (rects[i].contains(x, y) || is_resize) {
+                        selected_rect = rects[i];
+                        selected_resize = is_resize;
+                    }
+                }
+            }
+            
+            up() {
+            }
+            
+            move(x, y) {
+                if (selected_rect === null) {
+                    return;
+                }
+                
+                if (selected_resize) {
+                    selected_rect.dx += (x - this.last_down.x);
+                    selected_rect.dy += (y - this.last_down.y);
+                    if (selected_rect.dx < 1) { selected_rect.dx = 1; }
+                    if (selected_rect.dy < 1) { selected_rect.dy = 1; }
+                } else {
+                    selected_rect.x += (x - this.last_down.x);
+                    selected_rect.y += (y - this.last_down.y);
+                }
+                this.last_down = { x: x, y: y };
+            }
+        }
+        
+        canvas = new IcfpCanvas('#canvas', canvasPaint, new MouseEvents());
+        canvas.zoom(200, 200);
+        canvas.dx = -200;
+        canvas.dy = -200;
     </script>
   </body>
 </html>

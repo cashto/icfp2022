@@ -6,12 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="12.1.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="12.1.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <ProjectReference Include="..\utils\utils.csproj" />
   </ItemGroup>
-  
+
 </Project>
