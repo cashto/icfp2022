@@ -74,41 +74,6 @@ public class ApiController : ControllerBase
 {
     const string Root = @"C:\Users\cashto\Documents\GitHub\icfp2022";
 
-    public class Rectangle
-    {
-        public Rectangle() { }
-
-        public Rectangle(int x, int y, int dx, int dy, string name = null)
-        {
-            this.x = x;
-            this.y = y;
-            this.dx = dx;
-            this.dy = dy;
-            this.name = name;
-        }
-
-        public int x { get; set; }
-        public int y { get; set; }
-        public int dx { get; set; }
-        public int dy { get; set; }
-        public string name { get; set; }
-
-        public bool Equals(Rectangle other)
-        {
-            return x == other.x &&
-                y == other.y &&
-                dx == other.dx &&
-                dy == other.dy;
-        }
-
-        public bool Contains(int x, int y)
-        {
-            return 
-                x >= this.x && x < this.x + this.dx && 
-                y >= this.y && y < this.y + this.dy;
-        }
-    }
-
     class CutOption
     {
         public CutOption(string name, Rectangle new_rect, string orientation, int line_number, int keep)
@@ -161,12 +126,7 @@ public class ApiController : ControllerBase
     {
         var image = solver.Program.Image.Load($"{Root}\\work\\problems\\{id}.png");
 
-        var rects =
-            from r in body.rects.Reverse<Rectangle>()
-            let y1 = 400 - r.y - r.dy
-            select new solver.Program.Rectangle(r.x, y1, r.x + r.dx, y1 + r.dy);
-
-        var rectColors = solver.Program.GetRectangleColors(image, rects, true).Reverse<Int32[]>().ToList();
+        var rectColors = solver.Program.GetRectangleColors(image, body.rects.Reverse<Rectangle>(), true).Reverse<Int32[]>().ToList();
 
         string last_name = null;
         var current_node_id = 0;
@@ -187,9 +147,9 @@ public class ApiController : ControllerBase
                 var options = new List<CutOption>()
                 {
                     new CutOption("left", new Rectangle(target.x, work.y, work.dx - left, work.dy), "x", target.x, 1),
-                    new CutOption("top", new Rectangle(work.x, target.y, work.dx, work.dy - top), "y", target.y, 1),
+                    new CutOption("top", new Rectangle(work.x, target.y, work.dx, work.dy - top), "y", target.y, 0),
                     new CutOption("right", new Rectangle(work.x, work.y, work.dx - right, work.dy), "x", target.x + target.dx, 0),
-                    new CutOption("bottom", new Rectangle(work.x, work.y, work.dx, work.dy - bottom), "y", target.y + target.dy, 0)
+                    new CutOption("bottom", new Rectangle(work.x, work.y, work.dx, work.dy - bottom), "y", target.y + target.dy, 1)
                 };
 
                 var sorted_options =
@@ -200,7 +160,14 @@ public class ApiController : ControllerBase
 
                 var best_option = sorted_options.First();
 
-                yield return $"cut [{work.name}] [{best_option.orientation}] [{best_option.line_number}]";
+                var orientation = best_option.orientation;
+                var line_number = best_option.line_number;
+                if (orientation == "y")
+                {
+                    line_number = 400 - line_number;
+                }
+
+                yield return $"cut [{work.name}] [{orientation}] [{line_number}]";
                 var new_name = $"{work.name}.{best_option.keep}";
                 not_taken.Add($"{work.name}.{1 - best_option.keep}");
                 work = best_option.new_rect;

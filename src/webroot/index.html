@@ -104,7 +104,7 @@
             $('#text-problem').html("Problem " + problem_id);
             $.ajax('/api/load/' + problem_id).done(function(data) {
                 rects = JSON.parse(data).rects.map(function(i) {
-                    return new Rectangle(i.x, 400 - i.y - i.dy - 1, i.dx, i.dy);
+                    return new Rectangle(i.x, i.y, i.dx, i.dy);
                 });
                 selected_rect = null;
             });
@@ -125,9 +125,9 @@
         function roundRect(rect) {
             if (rect.x < 0) { rect.x = 0; }
             if (rect.y < 0) { rect.y = 0; }
-            if (rect.x + rect.dx >= 400) { rect.dx = 400 - rect.x - 1; }
-            if (rect.y + rect.dy >= 400) { rect.dy = 400 - rect.y - 1; }
-            return new Rectangle(Math.round(rect.x), 400 - Math.round(rect.y + rect.dy) - 1, Math.round(rect.dx), Math.round(rect.dy));
+            if (rect.x + rect.dx > 400) { rect.dx = 400 - rect.x; }
+            if (rect.y + rect.dy > 400) { rect.dy = 400 - rect.y; }
+            return new Rectangle(Math.round(rect.x), Math.round(rect.y), Math.round(rect.dx), Math.round(rect.dy));
         }
         
         function onSubmit() {

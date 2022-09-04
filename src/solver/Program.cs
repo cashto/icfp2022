@@ -8,6 +8,44 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+public struct Rectangle
+{
+    public int x { get; set; }
+    public int y { get; set; }
+    public int dx { get; set; }
+    public int dy { get; set; }
+    public string name;
+
+    public bool Equals(Rectangle other)
+    {
+        return x == other.x &&
+            y == other.y &&
+            dx == other.dx &&
+            dy == other.dy;
+    }
+
+    public bool Contains(int x, int y)
+    {
+        return
+            x >= this.x && x < this.x + this.dx &&
+            y >= this.y && y < this.y + this.dy;
+    }
+
+    public Rectangle(int x, int y, int dx, int dy)
+    {
+        this.x = x;
+        this.y = y;
+        this.dx = dx;
+        this.dy = dy;
+        this.name = null;
+    }
+
+    public bool IsValid()
+    {
+        return x >= 0 && y >= 0 && x + dx < 400 && y + dy < 400 && dx > 0 && dy > 0;
+    }
+}
+
 namespace solver { 
     public class Program
     {
@@ -93,50 +131,50 @@ namespace solver {
                 this.values[x, y, 3] = pixel[3];
             }
 
-            public IEnumerable<Int32[]> Enumerate(int x, int y, int cx, int cy, Image mask = null)
+            public IEnumerable<Int32[]> Enumerate(Rectangle r, Image mask = null)
             {
-                for (var iy = 0; iy < cy; ++iy)
+                for (var iy = 0; iy < r.dy; ++iy)
                 {
-                    for (var ix = 0; ix < cx; ++ix)
+                    for (var ix = 0; ix < r.dx; ++ix)
                     {
                         if (mask == null || mask.Get(ix, iy)[0] == 0)
                         {
                             yield return new Int32[] {
-                                values[x + ix, y + iy, 0],
-                                values[x + ix, y + iy, 1],
-                                values[x + ix, y + iy, 2],
-                                values[x + ix, y + iy, 3]
+                                values[r.x + ix, r.y + iy, 0],
+                                values[r.x + ix, r.y + iy, 1],
+                                values[r.x + ix, r.y + iy, 2],
+                                values[r.x + ix, r.y + iy, 3]
                             };
                         }
                     }
                 }
             }
 
-            public void Fill(int x, int y, int cx, int cy, Int32[] p)
+            public void Fill(Rectangle r, Int32[] p)
             {
-                for (var iy = 0; iy < cy; ++iy)
+                for (var iy = 0; iy < r.dy; ++iy)
                 {
-                    for (var ix = 0; ix < cx; ++ix)
+                    for (var ix = 0; ix < r.dx; ++ix)
                     {
-                        values[x + ix, y + iy, 0] = p[0];
-                        values[x + ix, y + iy, 1] = p[1];
-                        values[x + ix, y + iy, 2] = p[2];
-                        values[x + ix, y + iy, 3] = p[3];
+                        values[r.x + ix, r.y + iy, 0] = p[0];
+                        values[r.x + ix, r.y + iy, 1] = p[1];
+                        values[r.x + ix, r.y + iy, 2] = p[2];
+                        values[r.x + ix, r.y + iy, 3] = p[3];
                     }
                 }
             }
 
             public double Diff(Image other)
             {
-                return Diff(other, 0, 0, Width, Height);
+                return Diff(other, new Rectangle(0, 0, Width, Height));
             }
 
-            public double Diff(Image other, int x1, int y1, int x2, int y2, Image mask = null)
+            public double Diff(Image other, Rectangle r, Image mask = null)
             {
                 var penalty = 0.0;
-                for (var y = y1; y < y2; ++y)
+                for (var y = r.y; y < r.y + r.dy; ++y)
                 {
-                    for (var x = x1; x < x2; ++x)
+                    for (var x = r.x; x < r.x + r.dx; ++x)
                     {
                         if (mask == null || mask.Get(x,y)[0] == 0)
                         {
@@ -158,29 +196,11 @@ namespace solver {
             return Math.Sqrt(d0 * d0 + d1 * d1 + d2 * d2 + d3 * d3);
         }
 
-        struct Swap
-        {
-            int x1;
-            int y1;
-            int x2;
-            int y2;
-        }
-
         struct Paint
         {
             public int x;
             public int y;
             public Int32[] pixel;
-        }
-
-        Tuple<Image, List<Swap>> FindSwaps(Image image)
-        {
-            throw new NotImplementedException();
-        }
-
-        Image ApplySwaps(Image image, List<Swap> swaps)
-        {
-            throw new NotImplementedException();
         }
 
         static Int32[] Average(IEnumerable<Int32[]> pixels)
@@ -300,38 +320,6 @@ namespace solver {
             return ans;
         }
 
-        public struct Rectangle
-        {
-            public int x1;
-            public int y1;
-            public int x2;
-            public int y2;
-
-            public Rectangle(int x1, int y1, int x2, int y2)
-            {
-                this.x1 = x1;
-                this.y1 = y1;
-                this.x2 = x2;
-                this.y2 = y2;
-            }
-
-            public bool IsValid()
-            {
-                return x1 >= 0 && y1 >= 0 && x2 < 400 && y2 < 400 && x2 > x1 && y2 > y1;
-            }
-
-            public Dictionary<string, int> ToDict()
-            {
-                return new Dictionary<string, int>()
-                {
-                    { "x", x1 },
-                    { "y", 399 - y1 - (y2 - y1)},
-                    { "dx", x2 - x1 },
-                    { "dy", y2 - y1 }
-                };
-            }
-        }
-
         public static IEnumerable<Int32[]> GetRectangleColors(Image image, IEnumerable<Rectangle> rects, bool highQuality = false)
         {
             var mask = new Image(image.Width, image.Height);
@@ -341,23 +329,24 @@ namespace solver {
             {
                 if (highQuality)
                 {
-                    yield return FindBestColor(r.x1, r.y1, r.x2, r.y2, image, mask);
+                    yield return FindBestColor(r, image, mask);
                 }
                 else
                 {
-                    yield return Average(image.Enumerate(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1, mask));
+                    yield return Average(image.Enumerate(r, mask));
                 }
             
-                mask.Fill(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1, mask_pixel);
+                mask.Fill(r, mask_pixel);
             }
 
+            var fullImage = new Rectangle(0, 0, 400, 400);
             if (highQuality)
             {
-                yield return FindBestColor(0, 0, image.Width, image.Height, image, mask);
+                yield return FindBestColor(fullImage, image, mask);
             }
             else
             {
-                yield return Average(image.Enumerate(0, 0, image.Width, image.Height, mask));
+                yield return Average(image.Enumerate(fullImage, mask));
             }
         }
 
@@ -378,7 +367,7 @@ namespace solver {
                 PixelPenalty = Paint().Diff(OriginalImage);
                 var rectanglePenalties =
                     from r in Rectangles
-                    let penalty = 5.0 * 400.0 * 400.0 / (r.x2 - r.x1) / (r.y2 - r.y1)
+                    let penalty = 5.0 * 400.0 * 400.0 / r.dx / r.dy
                     select penalty;
 
                 var rectanglePenalty = Rectangles.Count * 10 + rectanglePenalties.Sum();
@@ -389,13 +378,13 @@ namespace solver {
             {
                 var colors = GetRectangleColors(OriginalImage, Rectangles, highQuality).ToList();
                 var newImage = new Image(OriginalImage.Width, OriginalImage.Height);
-                newImage.Fill(0, 0, newImage.Width, newImage.Height, colors.Last());
+                newImage.Fill(new Rectangle(0, 0, newImage.Width, newImage.Height), colors.Last());
 
                 for (var i = Rectangles.Count; i > 0; --i)
                 {
                     var r = Rectangles[i - 1];
                     var pixel = colors[i - 1];
-                    newImage.Fill(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1, pixel);
+                    newImage.Fill(r, pixel);
                 }
 
                 return newImage;
@@ -410,12 +399,12 @@ namespace solver {
             {
                 int dx = random.Next(-3, 6);
                 int dy = random.Next(-3, 6);
-                int x = r.x1 + random.Next(-2, 5) - dx / 2;
-                int y = r.y1 + random.Next(-2, 5) - dy / 2;
-                int width = r.x2 - r.x1 + dx;
-                int height = r.y2 - r.y1 + dy;
+                int x = r.x + random.Next(-2, 5) - dx / 2;
+                int y = r.y + random.Next(-2, 5) - dy / 2;
+                int width = r.dx + dx;
+                int height = r.dy + dy;
 
-                var ans = new Rectangle(x, y, x + width, y + height);
+                var ans = new Rectangle(x, y, width, height);
                 if (ans.IsValid())
                 {
                     return ans;
@@ -477,9 +466,9 @@ namespace solver {
                 x;
         }
 
-        public static Int32[] FindBestColor(int x1, int y1, int x2, int y2, Image image, Image mask = null)
+        public static Int32[] FindBestColor(Rectangle r, Image image, Image mask = null)
         {
-            var avg = Average(image.Enumerate(x1, y1, x2 - x1, y2 - y1, mask));
+            var avg = Average(image.Enumerate(r, mask));
             var best = avg;
             var best_baseline = 1000000000.0;
 
@@ -493,8 +482,8 @@ namespace solver {
                 blue[2] = Math.Min(blue[2] + 1, 255);
 
                 var image2 = new Image(400, 400);
-                image2.Fill(x1, y1, x2 - x1, y2 - y1, avg);
-                var baseline = image.Diff(image2, x1, y1, x2, y2, mask);
+                image2.Fill(r, avg);
+                var baseline = image.Diff(image2, r, mask);
                 if (baseline == 0)
                 {
                     return avg;
@@ -509,14 +498,14 @@ namespace solver {
                 best = avg.ToArray();
                 best_baseline = baseline;
 
-                image2.Fill(x1, y1, x2 - x1, y2 - y1, red);
-                var d_red = image.Diff(image2, x1, y1, x2, y2, mask) - baseline;
+                image2.Fill(r, red);
+                var d_red = image.Diff(image2, r, mask) - baseline;
 
-                image2.Fill(x1, y1, x2 - x1, y2 - y1, green);
-                var d_green = image.Diff(image2, x1, y1, x2, y2, mask) - baseline;
+                image2.Fill(r, green);
+                var d_green = image.Diff(image2, r, mask) - baseline;
 
-                image2.Fill(x1, y1, x2 - x1, y2 - y1, blue);
-                var d_blue = image.Diff(image2, x1, y1, x2, y2, mask) - baseline;
+                image2.Fill(r, blue);
+                var d_blue = image.Diff(image2, r, mask) - baseline;
 
                 avg[0] = Clamp(avg[0] + (d_red < 0 ? 1 : -1), 0, 255);
                 avg[1] = Clamp(avg[1] + (d_green < 0 ? 1 : -1), 0, 255);
@@ -533,8 +522,8 @@ namespace solver {
             {
                 for (var x = 0; x < image.Width; x += block_size)
                 {
-                    ans.Fill(x, y, block_size, block_size,
-                        FindBestColor(x, y, x + block_size, y + block_size, image));
+                    var r = new Rectangle(x, y, block_size, block_size);
+                    ans.Fill(r, FindBestColor(r, image));
                 }
             }
 
@@ -549,8 +538,8 @@ namespace solver {
             var pixelCounts = new List<Tuple<Rectangle, int>>();
             foreach (var r in rects)
             {
-                pixelCounts.Add(Tuple.Create(r, image.Enumerate(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1, mask).Count()));
-                mask.Fill(r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1, mask_pixel);
+                pixelCounts.Add(Tuple.Create(r, image.Enumerate(r, mask).Count()));
+                mask.Fill(r, mask_pixel);
             }
 
             var sorted_rects =
@@ -571,14 +560,14 @@ namespace solver {
             if (File.Exists("output.json"))
             {
                 var in_json = JToken.Parse(File.ReadAllText("output.json"));
-                foreach (var r in in_json["rects"])
+                foreach (var r in in_json["rects"].Reverse<JToken>())
                 {
-                    var x1 = (int)r["x"];
-                    var width = (int)r["dx"];
-                    var height = (int)r["dy"];
-                    var y1 = 399 - (int)r["y"] - height;
+                    var x = (int)r["x"];
+                    var y = (int)r["y"];
+                    var dx = (int)r["dx"];
+                    var dy = (int)r["dy"];
 
-                    originalRects.Add(new Rectangle(x1, y1, x1 + width, y1 + height));
+                    originalRects.Add(new Rectangle(x, y, dx, dy));
                 }
             }
 
@@ -642,7 +631,7 @@ namespace solver {
             Console.WriteLine($"Total penalty: {best_state.Penalty}");
             var dst = best_state.Paint(true);
 
-            var json = new Dictionary<string, object>() { { "rects", best_state.Rectangles.Reverse<Rectangle>().Select(i => i.ToDict()) } };
+            var json = new Dictionary<string, object>() { { "rects", best_state.Rectangles.Reverse<Rectangle>() } };
             File.WriteAllText("output.json", JsonConvert.SerializeObject(json));
 
             return dst;
