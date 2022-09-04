@@ -1,4 +1,5 @@
-﻿using ImageMagick;
+﻿using solver;
+using ImageMagick;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Hosting;
 using System.Diagnostics;
@@ -72,43 +73,6 @@ public class Startup
 public class ApiController : ControllerBase
 {
     const string Root = @"C:\Users\cashto\Documents\GitHub\icfp2022";
-
-    private List<int> AverageColor(MagickImage image, IEnumerable<Rectangle> superiorRectangles, Rectangle target)
-    {
-        var pixels = image.GetPixels();
-        var sum = new List<int>() { 0, 0, 0, 0 };
-        var n = 0;
-
-        for (var x = target.x; x < target.x + target.dx; ++x)
-        {
-            for (var y = target.y; y < target.y + target.dy; ++y)
-            {
-                if (!superiorRectangles.Any(r => r.Contains(x, y)))
-                {
-                    var pixel = pixels.GetPixel(x, 400 - y - 1);
-                    sum[0] += pixel[0];
-                    sum[1] += pixel[1];
-                    sum[2] += pixel[2];
-                    sum[3] += pixel[3];
-                    ++n;
-                }
-            }
-        }
-
-        if (n == 0)
-        {
-            return sum;
-        }
-
-        return sum.Select(i => (int)(i / n + 0.5)).ToList();
-    }
-
-    class TestResponse
-    {
-        public string code { get; set; }
-        public string message { get; set; }
-        public int id { get; set; }
-    }
 
     public class Rectangle
     {
@@ -195,58 +159,64 @@ public class ApiController : ControllerBase
 
     IEnumerable<string> GenerateISL(int id, SubmitBody body)
     {
-        using (var image = new MagickImage($"{Root}\\work\\problems\\{id}.png"))
+        var image = solver.Program.Image.Load($"{Root}\\work\\problems\\{id}.png");
+
+        var rects =
+            from r in body.rects.Reverse<Rectangle>()
+            let y1 = 400 - r.y - r.dy
+            select new solver.Program.Rectangle(r.x, y1, r.x + r.dx, y1 + r.dy);
+
+        var rectColors = solver.Program.GetRectangleColors(image, rects, true).Reverse<Int32[]>().ToList();
+
+        string last_name = null;
+        var current_node_id = 0;
+
+        foreach (var target_idx in Enumerable.Range(0, body.rects.Count))
         {
-            string last_name = null;
-            var current_node_id = 0;
+            var target = body.rects[target_idx];
+            var not_taken = new List<string>();
 
-            foreach (var target_idx in Enumerable.Range(0, body.rects.Count))
+            var work = new Rectangle() { x = 0, y = 0, dx = 400, dy = 400, name = current_node_id.ToString() };
+            while (!work.Equals(target))
             {
-                var target = body.rects[target_idx];
-                var not_taken = new List<string>();
+                var left = target.x - work.x;
+                var top = target.y - work.y;
+                var right = work.x + work.dx - target.x - target.dx;
+                var bottom = work.y + work.dy - target.y - target.dy;
 
-                var work = new Rectangle() { x = 0, y = 0, dx = 400, dy = 400, name = current_node_id.ToString() };
-                while (!work.Equals(target))
+                var options = new List<CutOption>()
                 {
-                    var left = target.x - work.x;
-                    var top = target.y - work.y;
-                    var right = work.x + work.dx - target.x - target.dx;
-                    var bottom = work.y + work.dy - target.y - target.dy;
+                    new CutOption("left", new Rectangle(target.x, work.y, work.dx - left, work.dy), "x", target.x, 1),
+                    new CutOption("top", new Rectangle(work.x, target.y, work.dx, work.dy - top), "y", target.y, 1),
+                    new CutOption("right", new Rectangle(work.x, work.y, work.dx - right, work.dy), "x", target.x + target.dx, 0),
+                    new CutOption("bottom", new Rectangle(work.x, work.y, work.dx, work.dy - bottom), "y", target.y + target.dy, 0)
+                };
 
-                    var options = new List<CutOption>()
-                    {
-                        new CutOption("left", new Rectangle(target.x, work.y, work.dx - left, work.dy), "x", target.x, 1),
-                        new CutOption("top", new Rectangle(work.x, target.y, work.dx, work.dy - top), "y", target.y, 1),
-                        new CutOption("right", new Rectangle(work.x, work.y, work.dx - right, work.dy), "x", target.x + target.dx, 0),
-                        new CutOption("bottom", new Rectangle(work.x, work.y, work.dx, work.dy - bottom), "y", target.y + target.dy, 0)
-                    };
+                var sorted_options =
+                    from option in options
+                    where option.new_rect.dx * option.new_rect.dy != work.dx * work.dy
+                    orderby option.new_rect.dx * option.new_rect.dy descending
+                    select option;
 
-                    var sorted_options =
-                        from option in options
-                        where option.new_rect.dx * option.new_rect.dy != work.dx * work.dy
-                        orderby option.new_rect.dx * option.new_rect.dy descending
-                        select option;
+                var best_option = sorted_options.First();
 
-                    var best_option = sorted_options.First();
+                yield return $"cut [{work.name}] [{best_option.orientation}] [{best_option.line_number}]";
+                var new_name = $"{work.name}.{best_option.keep}";
+                not_taken.Add($"{work.name}.{1 - best_option.keep}");
+                work = best_option.new_rect;
+                work.name = new_name;
+                last_name = new_name;
+            }
 
-                    yield return $"cut [{work.name}] [{best_option.orientation}] [{best_option.line_number}]";
-                    var new_name = $"{work.name}.{best_option.keep}";
-                    not_taken.Add($"{work.name}.{1 - best_option.keep}");
-                    work = best_option.new_rect;
-                    work.name = new_name;
-                    last_name = new_name;
-                }
+            var color = rectColors[target_idx + 1];
 
-                var color = AverageColor(image, body.rects.Skip(target_idx + 1), target);
+            yield return $"color [{work.name}] [{color[0]}, {color[1]}, {color[2]}, {color[3]}]";
 
-                yield return $"color [{work.name}] [{color[0]}, {color[1]}, {color[2]}, {color[3]}]";
-
-                foreach (var i in not_taken.Reverse<string>())
-                {
-                    yield return $"merge [{i}] [{last_name}]";
-                    ++current_node_id;
-                    last_name = current_node_id.ToString();
-                }
+            foreach (var i in not_taken.Reverse<string>())
+            {
+                yield return $"merge [{i}] [{last_name}]";
+                ++current_node_id;
+                last_name = current_node_id.ToString();
             }
         }
     }
