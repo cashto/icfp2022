@@ -46,7 +46,8 @@ public struct Rectangle
     }
 }
 
-namespace solver { 
+namespace solver
+{
     public class Program
     {
         class Block
@@ -91,6 +92,19 @@ namespace solver {
                     }
 
                     return ans;
+                }
+            }
+
+            public void Swap(Rectangle s, Rectangle d)
+            {
+                for (var y = 0; y < s.dy; ++y)
+                {
+                    for (var x = 0; x < s.dx; ++x)
+                    {
+                        var t = Get(x + s.x, y + s.y);
+                        Set(x + s.x, y + s.y, Get(x + d.x, y + d.y));
+                        Set(x + d.x, y + d.y, t);
+                    }
                 }
             }
 
@@ -176,10 +190,24 @@ namespace solver {
                 {
                     for (var x = r.x; x < r.x + r.dx; ++x)
                     {
-                        if (mask == null || mask.Get(x,y)[0] == 0)
+                        if (mask == null || mask.Get(x, y)[0] == 0)
                         {
                             penalty += distance(Get(x, y), other.Get(x, y));
                         }
+                    }
+                }
+
+                return penalty * 0.005;
+            }
+
+            public double Diff(Rectangle r, int[] color)
+            {
+                var penalty = 0.0;
+                for (var y = r.y; y < r.y + r.dy; ++y)
+                {
+                    for (var x = r.x; x < r.x + r.dx; ++x)
+                    {
+                        penalty += distance(Get(x, y), color);
                     }
                 }
 
@@ -335,7 +363,7 @@ namespace solver {
                 {
                     yield return Average(image.Enumerate(r, mask));
                 }
-            
+
                 mask.Fill(r, mask_pixel);
             }
 
@@ -358,20 +386,19 @@ namespace solver {
             public double Penalty { get; set; }
             public double PixelPenalty { get; set; }
 
-            public SearchState(Random random, Image originalImage, IEnumerable<Rectangle> rectangles)
+            public SearchState(Random random, Image originalImage, IEnumerable<Rectangle> rectangles, bool highQuality = false)
             {
                 Random = random;
                 OriginalImage = originalImage;
                 Rectangles = rectangles.ToList();
 
-                PixelPenalty = Paint().Diff(OriginalImage);
+                PixelPenalty = Paint(highQuality).Diff(OriginalImage);
                 var rectanglePenalties =
                     from r in Rectangles
                     let penalty = 5.0 * 400.0 * 400.0 / r.dx / r.dy
                     select penalty;
 
-                var rectanglePenalty = Rectangles.Count * 10 + rectanglePenalties.Sum();
-                Penalty = PixelPenalty + rectanglePenalty;
+                Penalty = PixelPenalty + rectanglePenalties.Sum();
             }
 
             public Image Paint(bool highQuality = false)
@@ -472,7 +499,7 @@ namespace solver {
             var best = avg;
             var best_baseline = 1000000000.0;
 
-            while (true)
+            for (var i = 0; i < 256; ++i)
             {
                 var red = avg.ToArray();
                 var green = avg.ToArray();
@@ -489,7 +516,7 @@ namespace solver {
                     return avg;
                 }
 
-                if (baseline > best_baseline)
+                if (baseline >= best_baseline)
                 {
                     // Console.WriteLine($"{x1},{y1} -> {avg[0]}.{avg[1]}.{avg[2]}: {best_baseline}");
                     return best;
@@ -511,11 +538,13 @@ namespace solver {
                 avg[1] = Clamp(avg[1] + (d_green < 0 ? 1 : -1), 0, 255);
                 avg[2] = Clamp(avg[2] + (d_blue < 0 ? 1 : -1), 0, 255);
             }
+
+            return best;
         }
 
         static Image SolvePuzzleBlocks(Image image)
         {
-            var block_size = 40;
+            var block_size = 20;
             var ans = new Image(image.Width, image.Height);
 
             for (var y = 0; y < image.Height; y += block_size)
@@ -552,30 +581,37 @@ namespace solver {
             return sorted_rects.Skip(howMany).ToList();
         }
 
+        static List<Rectangle> ReadJson(string filename)
+        {
+            if (!File.Exists("output.json"))
+            {
+                return new List<Rectangle>();
+            }
+
+            var json = JToken.Parse(File.ReadAllText("output.json"));
+            var rects =
+                from r in json["rects"].Reverse<JToken>()
+                select new Rectangle((int)r["x"], (int)r["y"], (int)r["dx"], (int)r["dy"]);
+
+            return rects.ToList();
+        }
+
         static Image SolvePuzzleSgd(Image src)
         {
             var random = new Random();
-            var originalRects = new List<Rectangle>();
+            var originalRects = ReadJson("output.json");
 
-            if (File.Exists("output.json"))
+            if (originalRects.Count == 0)
             {
-                var in_json = JToken.Parse(File.ReadAllText("output.json"));
-                foreach (var r in in_json["rects"].Reverse<JToken>())
+                for (var y = 0; y < 7; ++y)
                 {
-                    var x = (int)r["x"];
-                    var y = (int)r["y"];
-                    var dx = (int)r["dx"];
-                    var dy = (int)r["dy"];
-
-                    originalRects.Add(new Rectangle(x, y, dx, dy));
+                    for (var x = 0; x < 7; ++x)
+                    {
+                        originalRects.Add(new Rectangle(src.Width * x / 7 + src.Width / 14, src.Height * y / 7 + src.Height / 14, 10, 10));
+                    }
                 }
-            }
 
-            while (originalRects.Count < 30)
-            {
-                var x = random.Next(0, 395);
-                var y = random.Next(0, 395);
-                originalRects.Add(new Rectangle(x, y, x + 5, y + 5));
+                originalRects = IcfpUtils.Utils.Shuffle(originalRects).ToList();
             }
 
             var originalState = new SearchState(random, src, originalRects);
@@ -590,15 +626,14 @@ namespace solver {
             var best_penalty = Double.PositiveInfinity;
 
             var searchNodeEnum = searchNodes.GetEnumerator();
-            for (var i = 1; i < 5000; ++i)
+            for (var i = 1; i < 10000; ++i)
             {
                 searchNodeEnum.MoveNext();
                 if (i % 100 == 0)
                 {
-                    var intermediate = searchNodeEnum.Current.State.Paint(true);
-                    intermediate.Save($"intermediate-{i}.png");
+                    var intermediate = searchNodeEnum.Current.State.Paint(false);
+                    //intermediate.Save($"intermediate-{i}.png");
                     //Console.WriteLine($"{intermediate.Diff(src)}");
-
                     Console.WriteLine(searchNodeEnum.Current.State.Penalty);
                 }
 
@@ -628,17 +663,136 @@ namespace solver {
                 }
             }
 
-            Console.WriteLine($"Total penalty: {best_state.Penalty}");
-            var dst = best_state.Paint(true);
-
             var json = new Dictionary<string, object>() { { "rects", best_state.Rectangles.Reverse<Rectangle>() } };
             File.WriteAllText("output.json", JsonConvert.SerializeObject(json));
+
+            var best_rects = best_state.Rectangles;
+            best_rects = RemoveUnderperformingRects(src, best_rects);
+            best_state = new SearchState(random, src, best_rects);
+
+            Console.WriteLine($"Rectangle penalty: {best_state.Penalty - best_state.PixelPenalty}");
+            var dst = best_state.Paint(true);
+
+            json = new Dictionary<string, object>() { { "rects", best_state.Rectangles.Reverse<Rectangle>() } };
+            File.WriteAllText("output-pruned.json", JsonConvert.SerializeObject(json));
 
             return dst;
         }
 
+        static List<Rectangle> RemoveUnderperformingRects(Image image, List<Rectangle> rects)
+        {
+            var random = new Random();
+            var originalPenalty = (new SearchState(random, image, rects)).Penalty;
+            Console.WriteLine($"Original penalty: {originalPenalty}");
+
+            while (true)
+            {
+                var sorted_rects =
+                    from rect in rects
+                    let penalty = (new SearchState(random, image, rects.Where(r => !r.Equals(rect)))).Penalty
+                    orderby penalty
+                    where penalty < originalPenalty
+                    select rect;
+
+                if (!sorted_rects.Any())
+                {
+                    Console.WriteLine($"Done");
+                    return rects;
+                }
+
+                var worstRect = sorted_rects.First();
+                rects = rects.Where(r => !r.Equals(worstRect)).ToList();
+                var newPenalty = (new SearchState(random, image, rects)).Penalty;
+
+                Console.WriteLine($"Removed rect, penalty now {newPenalty}");
+                originalPenalty = newPenalty;
+            }
+        }
+
+        class InitialState
+        {
+            public int width { get; set; }
+            public int height { get; set; }
+            public List<InitialStateBlock> blocks { get; set; }
+        }
+
+        class InitialStateBlock
+        {
+            public string blockId { get; set; }
+            public List<int> bottomLeft { get; set; }
+            public List<int> topRight { get; set; }
+            public int[] color { get; set; }
+
+            public Rectangle ToRectangle()
+            {
+                var height = topRight[1] - bottomLeft[1];
+                return new Rectangle(bottomLeft[0], 400 - bottomLeft[1] - height, topRight[0] - bottomLeft[0], height);
+            }
+        }
+
+        static void SolveFullDivision1(int problemId)
+        {
+            var output = new List<string>();
+            var src_image = Image.Load($"..\\problems\\{problemId}.initial.png");
+            var dst_image = Image.Load($"..\\problems\\{problemId}.png");
+            var json = JsonConvert.DeserializeObject<InitialState>(File.ReadAllText($"..\\problems\\{problemId}.initial.json"));
+
+            while (true)
+            {
+                var memo = new Dictionary<Tuple<string, int[]>, double>();
+                Func<InitialStateBlock, int[], double> penalty = (r, color) =>
+                {
+                    var key = Tuple.Create(r.blockId, color);
+                    if (memo.ContainsKey(key))
+                    {
+                        return memo[key];
+                    }
+
+                    var val = dst_image.Diff(r.ToRectangle(), color);
+                    memo[key] = val;
+                    return val;
+                };
+
+                var improvements =
+                    from s in json.blocks
+                    from d in json.blocks
+                    where s.blockId != d.blockId
+                    let improvement =
+                        penalty(s, s.color) + penalty(d, d.color) -
+                        penalty(s, d.color) - penalty(d, s.color)
+                    orderby improvement descending
+                    select new { s, d, improvement };
+
+                var best = improvements.First();
+                var rect = best.s.ToRectangle();
+                if (best.improvement < 400 * 400 * 3 / rect.dx / rect.dy)
+                {
+                    src_image.Save($"output.{problemId}.png");
+                    var dirname = DateTime.UtcNow.ToString("O").Replace(":", "_");
+                    Directory.CreateDirectory($"..\\submissions\\{problemId}\\{dirname}");
+                    File.WriteAllLines($"..\\submissions\\{problemId}\\{dirname}\\request.txt", output);
+                    Console.WriteLine($".\\submit.cmd {problemId} {dirname}");
+                    return;
+                }
+
+                output.Add($"swap [{best.s.blockId}] [{best.d.blockId}]");
+                Console.WriteLine($"swap [{best.s.blockId}] [{best.d.blockId}] # {best.improvement}");
+                var t = best.s.color;
+                best.s.color = best.d.color;
+                best.d.color = t;
+
+                src_image.Swap(best.s.ToRectangle(), best.d.ToRectangle());
+            }
+        }
+
         static void Main(string[] args)
         {
+            for (var x = 29; x < 36; ++x)
+            {
+                SolveFullDivision1(x);
+            }
+            System.Environment.Exit(1);
+
             var src = Image.Load("input.png");
             var dst = SolvePuzzleSgd(src);
             dst.Save("output.png");

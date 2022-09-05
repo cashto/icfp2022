@@ -124,12 +124,47 @@ public class ApiController : ControllerBase
 
     IEnumerable<string> GenerateISL(int id, SubmitBody body)
     {
+        var current_node_id = 0;
+        string reset = null;
+
+        switch (id)
+        {
+            case 27:
+            case 30:
+                reset = "great-reset";
+                current_node_id = 798;
+                break;
+
+            case 31:
+            case 32:
+            case 33:
+            case 34:
+            case 35:
+                reset = "medium-reset";
+                current_node_id = 510;
+                break;
+
+            case 26:
+            case 28:
+            case 29:
+                reset = "small-reset";
+                current_node_id = 198;
+                break;
+        }
+
+        if (reset != null)
+        {
+            foreach (var line in System.IO.File.ReadAllLines($"{Root}\\work\\{reset}.txt"))
+            {
+                yield return line;
+            }
+        }
+
         var image = solver.Program.Image.Load($"{Root}\\work\\problems\\{id}.png");
 
         var rectColors = solver.Program.GetRectangleColors(image, body.rects.Reverse<Rectangle>(), true).Reverse<Int32[]>().ToList();
 
         string last_name = null;
-        var current_node_id = 0;
 
         foreach (var target_idx in Enumerable.Range(0, body.rects.Count))
         {

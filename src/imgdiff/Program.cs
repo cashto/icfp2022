@@ -12,11 +12,10 @@ namespace imgdiff
 
         static void Main(string[] args)
         {
-            var root = @"c:\Users\cashto\Documents\GitHub\icfp2022\work\idiff";
             var penalty = 0.0;
-            using (var old_img = new MagickImage($"{root}\\old.png"))
+            using (var old_img = new MagickImage($"output.png"))
             {
-                using (var new_img = new MagickImage($"{root}\\new.png"))
+                using (var new_img = new MagickImage($"ref.png"))
                 {
                     using (var diff_img = new MagickImage(new MagickColor("#000000"), 400, 400))
                     {
@@ -28,13 +27,13 @@ namespace imgdiff
                                 var new_pixel = new_img.GetPixels().GetPixel(x, y);
                                 var d = distance(old_pixel[0] - new_pixel[0], old_pixel[1] - new_pixel[1], old_pixel[2] - new_pixel[2]);
                                 var diff = (byte)Math.Min((int)d, 255);
-                                penalty += diff;
+                                penalty += d;
                                 diff_img.GetPixels().SetPixel(x, y, new byte[]{ diff, diff, diff} );
                             }
                         }
 
                         
-                        diff_img.Write($"{root}\\diff.png");
+                        diff_img.Write($"diff.png");
                     }
                 }
 
