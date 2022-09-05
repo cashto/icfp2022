@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "imgdiff": {
+      "commandName": "Project",
+      "workingDirectory": "C:\\Users\\cashto\\Documents\\GitHub\\icfp2022\\work\\debug"
+    }
+  }
+}
