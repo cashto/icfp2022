@@ -12,7 +12,7 @@ Rectangle-shaped regions were formed using line-cut commands which trimmed away 
 
 For the standard division, I used randomized search starting from a series of 49 rectangles arranged in a 7x7 grid.
 
-In the lightning division, images started from a blank, white canvas -- but in the standard division, the initial canvas was some starting image; and furthermore the initial area was already pre-divided into an array of between 100 and 400 blocks.  In theory, solvers could use this to their advantage, but mine did not -- instead I merged everything back to a single region and overpainted it with a fixed background color.  
+In the lightning division, images started from a blank, white canvas -- but in the standard division, an initial starting image was provided; and furthermore the initial area was already pre-divided into an array of between 100 and 400 blocks.  In theory, solvers could use this to their advantage, but mine did not -- instead I merged everything back to a single region and overpainted it with a fixed background color.  
 
 Initially this remerge was by recursively merging 2x2 blocks into 1, but I realized this was more costly than the simpler option of merging blocks by row and then by column.
 
@@ -33,7 +33,7 @@ Above shows 10,000 iterations of the solver, which takes about five minutes of e
 |Region creation|2,211 |
 |**Total**      |23,728|
 
-The two images may not seem very similar to the human eye, which notices facial details and sharply-defined edges rather than "sum of color distances over the entire image".  But reduced to quarter size, the similarity becomes more readily apparent:
+The two images may not seem very similar to the human eye, which notices facial details and sharply-defined edges rather than "sum of color distances over the entire image".  But reduced to 1/16th size, the similarity becomes more readily apparent:
 
 ![Target image](/images/input-quarter.png) ![Solution image](/images/output-quarter.png) 
 
