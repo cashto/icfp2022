@@ -10,7 +10,7 @@ For the lightning division, solutions were generated manually.  I used the same 
 
 Rectangle-shaped regions were formed using line-cut commands which trimmed away the four sides in order of increasing size, so as to minimize the cost of forming the rectangular region.  Once the target rectangle was painted, the line-cut commands were undone in reverse order using merge commands.  I had some idea of switching to using point-cut commands, and potentially leaving regions unmerged if they were no longer used by the rest of the image, but analysis showed that this part contributed only a tiny fraction of the overall score, so I didn't optimize it further.
 
-For the standard division, I used randomized search starting from a series of 49 rectangles arranged in a 7x7 grid.
+For the standard division, I used randomized search starting from a series of 49 rectangles arranged in a 7x7 grid.  Rectangles which do not contribute positively to the final score are removed before submission.
 
 In the lightning division, images started from a blank, white canvas -- but in the standard division, an initial starting image was provided; and furthermore the initial area was already pre-divided into an array of between 100 and 400 blocks.  In theory, solvers could use this to their advantage, but mine did not -- instead I merged everything back to a single region and overpainted it with a fixed background color.  
 
